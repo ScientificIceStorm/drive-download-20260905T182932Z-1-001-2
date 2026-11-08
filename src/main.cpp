@@ -6,27 +6,38 @@
 
 pros::adi::DigitalOut claw('A', false);
 pros::adi::DigitalOut pneumatic_h('H', false);
-pros::MotorGroup lift_mg({5, -7});
+pros::MotorGroup lift_mg({-5, 4});
+pros::Motor auxiliary_motor(14, pros::MotorGears::green);
+pros::Motor auxiliary_motor_6(6, pros::MotorGears::green);
 
 void initialize() {
+    auxiliary_motor.set_encoder_units(pros::E_MOTOR_ENCODER_DEGREES);
     lift_mg.set_encoder_units_all(pros::E_MOTOR_ENCODER_DEGREES);
     lift_mg.tare_position_all();
-    lift_mg.set_brake_mode_all(pros::E_MOTOR_BRAKE_HOLD);
+    lift_mg.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
     robot::initialize();
     initialize_selector();
 }
-void disabled() { robot::stop(); }
+void disabled() {
+    lift_mg.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+    robot::stop();
+}
 void competition_initialize() {}
 void autonomous() { robot::run_auton(); }
-
 void opcontrol() {
+    lift_mg.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+    lift_mg.brake();
     pros::Controller master(pros::E_CONTROLLER_MASTER);
+    auxiliary_motor.move(0);
+    auxiliary_motor_6.move(0);
     while (true) {
         const bool screen_run = take_run_request();
-        if ((master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_X) || screen_run) &&
+        if ((master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_A) || screen_run) &&
             !pros::competition::is_connected()) {
             lift_mg.move(0);
             robot::run_auton();
+            lift_mg.set_brake_mode_all(pros::E_MOTOR_BRAKE_COAST);
+            lift_mg.brake();
         }
         int forward = master.get_analog(ANALOG_LEFT_Y);
         int turn = master.get_analog(ANALOG_RIGHT_X);
@@ -38,13 +49,15 @@ void opcontrol() {
         if (lift_direction == 0) lift_mg.brake();
         else lift_mg.move(lift_direction * robot_config::lift_power);
         if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L1))
-            claw.set_value(false);
-        if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L2))
             claw.set_value(true);
+        if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_L2))
+            claw.set_value(false);
         if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP))
             pneumatic_h.set_value(true);
         if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_DOWN))
             pneumatic_h.set_value(false);
+        auxiliary_motor.move(master.get_digital(pros::E_CONTROLLER_DIGITAL_B) ? 100 : 0);
+        auxiliary_motor_6.move(master.get_digital(pros::E_CONTROLLER_DIGITAL_B) ? -100 : 0);
         pros::delay(20);
     }
 }
